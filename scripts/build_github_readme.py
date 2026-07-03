@@ -5,7 +5,7 @@ from urllib.parse import quote
 
 
 ROOT = Path(__file__).resolve().parents[1]
-META_JSON = ROOT / "2310.12986_reference_metadata.json"
+META_JSON = ROOT / "data" / "2310.12986_reference_metadata.json"
 OUT = ROOT / "README.md"
 
 
@@ -19,6 +19,7 @@ VENUE_SHORT = {
     "IEEE Signal Processing Magazine": "IEEE_SPM",
     "IEEE Robotics & Automation Magazine": "IEEE_RAM",
     "ACM Computing Surveys": "ACM_CSUR",
+    "Advances in Computational Mathematics": "Adv_Comp_Math",
     "Princeton University Press": "Book",
     "Springer": "Book",
     "Elsevier": "Book",
@@ -123,6 +124,22 @@ def row_year(row):
         return 0
 
 
+def direct_link(row):
+    verified = row.get("direct_url_verified") or {}
+    candidates = []
+    if verified.get("ok") and row.get("direct_url"):
+        candidates.append(row["direct_url"])
+    for key in ("url", "direct_url"):
+        value = row.get(key)
+        if value:
+            candidates.append(value)
+
+    for value in candidates:
+        if "semanticscholar.org/search" not in value:
+            return value
+    return ""
+
+
 def build():
     meta = json.loads(META_JSON.read_text(encoding="utf-8"))
     rows = meta["rows"]
@@ -151,17 +168,18 @@ def build():
 
     for row in rows:
         title = clean_text(row.get("title"))
-        link = row.get("url") or f"https://www.semanticscholar.org/search?q={quote(title)}&sort=relevance"
+        link = direct_link(row)
         authors = clean_text(row.get("authors") or "Authors unavailable")
         institutes = clean_text(row.get("institutions") or "Institute unavailable")
+        title_line = f"[{title}]({link})" if link else title
         title_cell = (
             f"{venue_badge(row)}<br>"
-            f"[{title}]({link})<br>"
+            f"{title_line}<br>"
             f"{authors}<br>"
             f"*Institute:* {institutes}"
         )
         date_cell = str(row_year(row)) if row_year(row) else "-"
-        links_cell = f"[Paper]({link})" if row.get("url") else f"[Search]({link})"
+        links_cell = f"[Paper]({link})" if link else "Needs direct link"
         out.append(
             f"| {title_cell} | {date_cell} | {links_cell} | {modality_badges(row)} | {tag_badges(row)} |"
         )
